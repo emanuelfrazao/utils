@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+
+# Wrapper around scp for simply copying from local to remote
+usage() {
+    echo "$0 [options] source target"
+}
+
+{
+    options=${@: 1:$#-2}
+    remote_source=${@: -2:1}
+    local_target=${@: -1:1}
+
+    scp ${options[@]} $remote_source "$user@$client:~/$local_target"
+}
+

@@ -1,0 +1,19 @@
+#! /usr/bin/bash
+
+# remember -- An easy command line-based reminder pad
+
+rememberfile="$HOME/.remember"
+
+if [ $# -eq 0 ] ; then
+    # Prompt the user for input, and save
+    echo "Enter note, end with ^D:"
+    cat - >> $rememberfile
+elif [ "$*" == 'nothing' ] ; then
+    # Clean all reminders
+    rm -f $rememberfile
+else
+    # Save any arguments
+    echo "$*" >> $rememberfile
+fi
+
+exit 0

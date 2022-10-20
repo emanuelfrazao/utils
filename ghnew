@@ -1,0 +1,137 @@
+#!/usr/bin/bash
+
+# ghnew: create new github repo connected to local also created on this folder
+#        wrapper around gh cli that uses gh repo create options
+
+# Note that description in $desc will be used directly in usage info
+desc=$(cat<<EOF
+description: create new github repo connected to local also created on this folder
+
+options:
+    -h      to see the help message
+EOF
+)
+
+# globals
+    # exiting
+trap "exit 1" TERM
+export TOP_PID=$$
+
+    # utils
+LOG_DIR="$(dirname $0)/logs"
+SCRIPT_BASENAME=$(basename $0)
+LOG_FILE="$LOG_DIR/$SCRIPT_BASENAME.last.log"
+
+# functions
+usage() {
+    echo "usage: $SCRIPT_BASENAME [-h]"
+}
+
+help() {
+    usage
+    echo $desc
+}
+
+error() { 
+    echo "$SCRIPT_BASENAME: $*" 1>&2
+    kill -s TERM $TOP_PID
+}
+
+log() {
+    echo 2
+}
+
+assert_assumptions() {
+
+    if ! [ -x "$(command -v git)" ]; then echo "$SCRIPT_BASENAME: git cli not available" >&2; exit 1; fi
+
+    local LOGGED_GITHUB="Logged in to github.com as"
+    local SHH_CONFIGURED="Git operations for github.com configured to use ssh protocol"
+    if ! [ -x "$(command -v gh)" ]; then echo "$SCRIPT_BASENAME: github cli [gh] not available" >&2; exit 1; fi
+    
+    status=$(gh auth status 2>&1)
+    if echo $status | grep -q -v "$LOGGED_GITHUB"; then echo "$SCRIPT_BASENAME: github authorization not set" >&2; exit 1; fi
+    if echo $status | grep -q -v "$SHH_CONFIGURED"; then echo "$SCRIPT_BASENAME: github not configured with ssh" >&2; exit 1; fi
+}
+
+read_yes_no() {
+    while [ -z "$var" ]
+    do
+        local var
+        read -p "$* (yes|no): " var
+        if ! [[ "$var" =~ ^(yes|no)$ ]]; then unset var; fi
+    done
+    echo "$var"
+}
+
+read_single_word() {
+    while [ -z "$var" ]
+    do
+        local var
+        read -p "$*: " var
+        if [ $(echo $var | wc -w) -gt 1 ]; then unset var; fi
+    done
+    echo $var
+}
+
+read_valid_dirpath() {
+    while [ -z "$var" ]
+    do
+        local var
+        read -p "$*: " var
+        if [ ! -d "$var" ]; then unset var; fi
+    done
+    echo $var
+}
+
+select_option() {
+    options=${@:2}
+    local PS3="$1: "
+    local option
+    select option in ${options[@]}
+    do
+        if printf '%s\0' ${options[@]} | grep -Fxzq -- "$option"; then break; fi
+    done
+    echo $option
+}
+
+################################ MAIN
+main() {
+    # Assert any assumptions
+    # assert_assumptions
+
+    # Get repo name
+    repo=$(read_single_word "Specify new repository's name (without spaces)")
+    account=$(git config user.name)
+    repo_ssh="git@github.com:${account}/${repo}.git"
+
+    # Get whether to make it public or private
+    visibility=$(select_option "Specify the repository's visibility" private public)
+
+    # Try to create repo TODO: add check
+    gh repo create $repo "--$visibility"
+
+    # Create new, or move to existing - local directory
+    associate_to_dir=$(read_yes_no "Want to create the repository on an existing local directory?")
+
+    if [[ $associate_to_dir == "yes" ]]
+    then
+        dir=$(read_valid_dirpath "Specify path to existing directory to associate to")
+    elif [[ $associate_to_dir == "no" ]]
+    then
+        dir="./$repo"
+        mkdir $dir
+    fi
+
+    cd $dir
+
+    # Initiate git and set remote
+    git init
+    git remote add origin $repo_ssh
+    git remote -v
+
+    # Sync branches
+    git config --add --bool push.autoSetupRemote true
+}
+
+main 2>&1 | tee $LOG_FILE # TODO: log user input appropriately

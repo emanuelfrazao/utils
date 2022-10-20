@@ -1,0 +1,21 @@
+#! /usr/bin/bash
+
+# remind -- Get the entire reminders list, or the matching lines in any keywords are given.
+
+rememberfile="$HOME/.remember"
+
+if [ ! -f $rememberfile ] ; then
+    # Nothing to remember, exit
+    echo "$0: No reminders left for you, dear." >&2
+    exit 1
+fi
+
+if [ $# -eq 0 ] ; then
+    # Display all reminders
+    less -de $rememberfile
+else
+    # Filter by keywords given with grep interface
+    grep "$@" $rememberfile | less -de
+fi
+
+exit 0
